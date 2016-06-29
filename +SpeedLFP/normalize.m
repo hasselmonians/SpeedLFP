@@ -1,5 +1,8 @@
 function [normExMat, normMeanVal, meanVal] = normalize(exMat, tao)
     % Normalization across each rat, as in Wells 2013
+    %
+    % [normExMat, normMeanVal, meanVal] = SpeedLFP(exMat, tao)
+    
     normVal = NaN(size(exMat,1),1);
     for i = 1:size(exMat,1)
         normVal(i) = nansum(((tao{i,1}./nansum(tao{i,1})).*exMat{i,1}));
@@ -7,7 +10,6 @@ function [normExMat, normMeanVal, meanVal] = normalize(exMat, tao)
     
     normVal = normVal - nanmean(normVal);
     
-    %normExMat = NaN(size(exMat));
     normExMat = cell(size(exMat));
     for i = 1:size(exMat,1)
         for k = 1:size(exMat,2)
