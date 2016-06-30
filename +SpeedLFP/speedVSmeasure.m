@@ -1,5 +1,4 @@
-function [meanFeature, sigmaFeature, speedDim, y_m, R, P, b, y_int, tao, hVar] = speedVSmeasure(root,varargin)
-% [meanFreq, sigmaFreq, speedDim, y_m, R, P, b, y_int ] = speedVSmeasure(root, varargin)
+function [meanFeature, sigmaFeature, speedDim, ft, tao, fet, speed_us, hVar] = speedVSmeasure(root,varargin)
 %
 % NOTE: root.active_lfp and root.epoch must be set before use!
 %
@@ -28,10 +27,11 @@ function [meanFeature, sigmaFeature, speedDim, y_m, R, P, b, y_int, tao, hVar] =
 %   P: Linear fit P value
 %   b: Linear fit slope
 %   y_int: Linear fit y intercept
+% 
+% [meanFeature, sigmaFeature, speedDim, ft, tao, fet, speed_us, hVar = speedVSmeasure(root, varargin)
 
 %% Parse & setup
 p = inputParser;
-p.addParamValue('active_lfp', [], @isnumerc)
 p.addParamValue('markerColor', [0 0 1], (@(c) ischar(c) || @(c) numel(c) ==3 )); % Can specify as 'b' or [0 0 1]
 p.addParamValue('ifPlot', 1, @(c) (c==1 || c==0));
 p.addParamValue('figureVar', [], @isnumeric);
@@ -58,23 +58,29 @@ speedDim = speedDim(:);
 switch lower(feature)
     case 'frequency'
         % Calculate instantaneous frequency, based on Hilbert transform
-        phase = CMBHOME.LFP.InstPhase(CMBHOME.LFP.BandpassFilter(root.lfp.signal, root.lfp.fs, freqBand));
+        phase = CMBHOME.LFP.InstPhase(CMBHOME.LFP.BandpassFilter(root.b_lfp(root.active_lfp).signal, root.b_lfp(root.active_lfp).fs, freqBand));
         [~, iv] = findpeaks(phase);
         freq = root.lfp.fs ./ diff(iv);
         freq = [NaN;freq];
-        freq = interp1(root.lfp.ts(iv),freq,root.lfp.ts);
+        freq = interp1(root.b_lfp(root.active_lfp).ts(iv),freq,root.b_lfp(root.active_lfp).ts);
         freq(freq >  freqBand(2)*1.5) = NaN;       % problem cycles discounted
-        fet = freq;
+        root.b_lfp(root.active_lfp).b_myvar = freq;
+        fet = CMBHOME.Utils.ContinuizeEpochs(root.lfp.myvar);
+        
     case 'amplitude'
         % Instantaneous amplitude from hilbert transform
-        fet = CMBHOME.LFP.InstAmplitude(CMBHOME.LFP.BandpassFilter(root.lfp.signal, root.lfp.fs, freqBand));
+        root.b_lfp(root.active_lfp) = ...
+            CMBHOME.LFP.InstAmplitude(CMBHOME.LFP.BandpassFilter(root.lfp.signal, root.lfp.fs, freqBand));
+        fet = CMBHOME.Utils.ContinuizeEpochs(root.lfp.myvar);
+        
     otherwise
         error('Unknown feature')
 end
 
 % Upsample the speed:
-speed_us = interp1(root.ts, root.vel, root.lfp.ts);
-speed_us = speed_us * root.spatial_scale;
+speed_us = interp1(root.b_ts, root.b_vel, root.b_lfp(root.active_lfp).ts);
+root.b_lfp(root.active_lfp).b_myvar = speed_us * root.spatial_scale;
+speed_us = CMBHOME.Utils.ContinuizeEpochs(root.lfp.myvar);
 
 
 %% SpeedMod
@@ -96,7 +102,7 @@ tao(bads) = [];
 speedDim(bads) = [];
 
 %% Fit
-[y_m, R, P, b, y_int] = CMBHOME.Utils.LinearRegression(speedDim,meanFeature);
+[ft.y_m, ft.R, ft.P, ft.b, ft.y_int] = CMBHOME.Utils.LinearRegression(speedDim,meanFeature);
 
 
 %% Plot
@@ -109,7 +115,7 @@ if ifPlot
         hold on
         
         if plotFit == 1
-            hVar(2) = plot(speedDim,y_m,'Color',markerColor);
+            hVar(2) = plot(speedDim,ft.y_m,'Color',markerColor);
         end
         
         if plotErr == 1
