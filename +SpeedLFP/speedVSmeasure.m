@@ -66,11 +66,10 @@ switch lower(feature)
         freq(freq >  freqBand(2)*1.5) = NaN;       % problem cycles discounted
         root.b_lfp(root.active_lfp).b_myvar = freq;
         fet = CMBHOME.Utils.ContinuizeEpochs(root.lfp.myvar);
-        
     case 'amplitude'
         % Instantaneous amplitude from hilbert transform
-        root.b_lfp(root.active_lfp) = ...
-            CMBHOME.LFP.InstAmplitude(CMBHOME.LFP.BandpassFilter(root.lfp.signal, root.lfp.fs, freqBand));
+        root.b_lfp(root.active_lfp).b_myvar = ...
+            CMBHOME.LFP.InstAmplitude(CMBHOME.LFP.BandpassFilter(root.b_lfp(root.active_lfp).signal, root.b_lfp(root.active_lfp).fs, freqBand));
         fet = CMBHOME.Utils.ContinuizeEpochs(root.lfp.myvar);
         
     otherwise

@@ -1,32 +1,54 @@
-%% run for a single channel/session
-features = {'frequency','amplitude'};
-% sc = "session*channel"
-for i = 1:numel(features)
-    [sc(1).(features{i}).mean, sc(1).(features{i}).sigma, sc(1).(features{i}).speedDim,...
-        sc(1).(features{i}).ft, sc(1).(features{i}).tao, sc(1).(features{i}).fet, ...
-        sc(1).(features{i}).speed_us] = SpeedLFP.speedVSmeasure(root,'feature',features{i});
+
+%% Setup
+addpath /media/wchapman/RatBrains/git/CMBHOME
+
+sc(1,1).fname = '/media/wchapman/RatBrains/Dropbox/UnitRecordingData/Caitlin''s Data/Analyses/CMBs/diazepam_infusion/CMBobject_clamps-69.mat';
+sc(1,2).fname = '/media/wchapman/RatBrains/Dropbox/UnitRecordingData/Caitlin''s Data/Analyses/CMBs/diazepam_infusion/CMBobject_clamps-70.mat';
+sc(1,3).fname = '/media/wchapman/RatBrains/Dropbox/UnitRecordingData/Caitlin''s Data/Analyses/CMBs/diazepam_infusion/CMBobject_clamps-71.mat';
+sc(1,4).fname = '/media/wchapman/RatBrains/Dropbox/UnitRecordingData/Caitlin''s Data/Analyses/CMBs/diazepam_infusion/CMBobject_clamps-72.mat';
+
+for i = 1:4
+    sc(1,i).active_lfp = 5;
 end
 
-%% Compare a single channel across sessions:
-% transform sc to nXm where n = number of channels, m=number of conditions
-%sc(2) = sc; sc = (sc(:))';
+features = {'frequency','amplitude'};
 
-rs1 = sc(1).amplitude.speed_us;
-s1 = sc(1).amplitude.fet;
-rs2 = sc(2).amplitude.speed_us;
-s2 = sc(2).amplitude.fet;
+%% Run on each session
+for i = 1:size(sc,1)
+    for k = 1:size(sc,2)
+        load(sc(i,k).fname);
+        root.active_lfp = sc(i,k).active_lfp;
+        root = root.FixTime;
+        root.b_vel = [];
+        root = root.AppendKalmanVel;
+        
+        for m = 1:numel(features)
+            [sc(i,k).(features{m}).mean, sc(i,k).(features{m}).sigma, sc(i,k).(features{m}).speedDim,...
+                sc(i,k).(features{m}).ft, sc(i,k).(features{m}).tao, sc(i,k).(features{m}).fet, ...
+                sc(i,k).(features{m}).speed_us] = SpeedLFP.speedVSmeasure(root,'feature',features{m});
+        end
+    end
+end
 
-ident = [zeros(size(rs1)); ones(size(rs2))];
+%% Wells et al normalization
+sc = SpeedLFP.normalize(sc,features);
 
-[~, res.atab, res.ctab, res.stats] = aoctool([rs1;rs2], [s1;s2], ident,[],[],[],[],'off',5);
+%% Setup the vectors for regression
+rs = [];
+c = [];
+s = [];
+d = [];
+si = [];
 
-%%
+for i = 1:size(sc,1)
+    for k = 1:size(sc,2)
+        rs = [rs; sc(i,k).amplitude.speedDim];
+        c  = [c ; ones(size(sc(i,k).amplitude.speedDim))*i];
+        s  = [s ; ones(size(sc(i,k).amplitude.speedDim))*k];
+        d  = [d ; ones(size(sc(i,k).amplitude.speedDim))*(k==2)];
+        si = [si; sc(i,k).frequency.mean];
+    end
+end
 
-rs1 = sc(1).amplitude.speedDim;
-s1 = sc(1).amplitude.mean;
-rs2 = sc(2).amplitude.speedDim;
-s2 = sc(2).amplitude.mean;
 
-ident = [zeros(size(rs1)); ones(size(rs2))];
-
-[~, res.atab, res.ctab, res.stats] = aoctool([rs1;rs2], [s1;s2], ident);
+[~, res.atab, res.ctab, res.stats] = aoctool(rs, si, s);
